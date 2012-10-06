@@ -34,16 +34,13 @@ int sock;
 
 int main(int argc, char *argv[]) {
 
-  static int lSize, readResult, selret;
+  static int selret;
 
   unsigned int recLen;
-  static int i = 0;
   static char* p;
   static char filebuffer[FILESIZE];
-  static char recvmsg[BUFSIZE];
   static char directemp[BUFSIZE];
   static char filename[BUFSIZE];
-  static char msgbuffer[512];
   static struct timeval time;
 
   static fd_set readFDS;
@@ -170,7 +167,7 @@ int main(int argc, char *argv[]) {
       printf("timeout\n");
       bzero(&filebuffer,sizeof(filebuffer));
 
-      int timeoutframe = findtimeout(timesArray,SWS);
+      int timeoutframe = FindTimeout(timesArray,SWS);
 
 
 
@@ -180,7 +177,7 @@ int main(int argc, char *argv[]) {
     	  lastFrameCount ++;
       }
 
-      makedatapacket(filebuffer,frameArray[timeoutframe]);
+      MakePacket(filebuffer,frameArray[timeoutframe]);
 
       printf("\nSending Timed out Frame: \n\n");
       printFrame(frameArray[timeoutframe]);

@@ -34,9 +34,8 @@ typedef struct{
   int seqNum;
 }ack;
 
-void makedatapacket(char* creturn, frame f);
 void removefromtimearray(int seqNum, timeStruct timearray[], int size);
-int findtimeout(timeStruct timearray[], int size);
+int FindTimeout(timeStruct timearray[], int size);
 int currentDeadline(timeStruct timearray[], int size);
 int MoveForward(int* LB, int* RB, frame frameArray[], int arraySize);
 void InitFrames(frame frameArray[], int arraySize);
@@ -50,9 +49,13 @@ void printFrame(frame f);
 void makeackmsg(char*acknowledge, ack* a);
 void makeackstruct(char* a, ack* ackreturn);
 void makeackstruct(char* a, ack* ackreturn);
-void makeackfromframe(ack* ackreturn,frame* f);
-void makedatapacket(char* creturn, frame f);
-void makedatastruct(char* c, frame* sreturn);
+void FrameToAck(ack* ackreturn,frame* f);
+void MakePacket(char* creturn, frame f);
+void MakeFrame(char* c, frame* sreturn);
+int PlaceFrame(frame f, frame frameArray[], int arraySize, int* LB, int* RB, FILE* fp);
+int ServerMoveForward(frame frameArray[], int arraySize, int* LB, int* RB, FILE* fp);
+void InitFrameArray (frame frameArray[], int arraySize);
+void WriteToFile(char* data, FILE* fp, int size);
 
 
 void removefromtimearray(int seqNum, timeStruct timearray[], int size){
@@ -66,7 +69,7 @@ void removefromtimearray(int seqNum, timeStruct timearray[], int size){
 	}
 }
 
-int findtimeout(timeStruct timearray[], int size){
+int FindTimeout(timeStruct timearray[], int size){
 	int i,j;
 	double smallesttime = -1;
 	int small = -1;
@@ -235,7 +238,7 @@ int readtoframe(char* c, const FILE** fp){
 
   int readResult = fread(c,1,512,*fp);
 
-  if(readResult < 512){result = 1;}
+  if(feof(*fp)){result = 1;}
 
   return result;
 
@@ -265,7 +268,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     	printf("Got to here1\n");
     	isLastFrame = readtoframe(data, fp);
     	setFrame(&frameArray[i], i, isLastFrame, strlen(data), 0, data);
-    	makedatapacket(sendBuffer, frameArray[i]);
+    	MakePacket(sendBuffer, frameArray[i]);
     	printFrame(frameArray[i]);
 
     	/* Time shit */
@@ -287,7 +290,6 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     		perror("sendto()");
     		exit(1);
     	}
-
     	if(frameArray[i].lastFrame == 1){return 1;}
 
 
@@ -300,7 +302,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     	printf("Got to here2\n");
     	isLastFrame = readtoframe(data, fp);
     	setFrame(&frameArray[i], i, isLastFrame, strlen(data), 0, data);
-    	makedatapacket(sendBuffer, frameArray[i]);
+    	MakePacket(sendBuffer, frameArray[i]);
     	printFrame(frameArray[i]);
 
     	/* Time shit */
@@ -320,9 +322,8 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     		printf("Error Sending\n");
     		perror("sendto()");
     		exit(1);
-       }
-
-    	if(frameArray[i].lastFrame == 1){return 1;}
+         }
+    	 if(frameArray[i].lastFrame == 1){return 1;}
     }
 
     for(i = 0; i < finishSeq; i++) {
@@ -330,7 +331,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     	printf("Got to here3\n");
     	isLastFrame = readtoframe(data, fp);
     	setFrame(&frameArray[i], i, isLastFrame, strlen(data), 0, data);
-    	makedatapacket(sendBuffer, frameArray[i]);
+    	MakePacket(sendBuffer, frameArray[i]);
     	printFrame(frameArray[i]);
 
     	/* Time shit */
@@ -351,10 +352,8 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     		perror("sendto()");
     		exit(1);
     	}
-
     	if(frameArray[i].lastFrame == 1){return 1;}
     }
-    
   }
   return 0;
 }
@@ -362,7 +361,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
 int ballinselect(int sock, fd_set* readFDS, int tsec, int tusec){
   
   
-  int iSockRet, iSelRet;
+  int iSelRet;
   struct timeval timeVal;
 
   timeVal.tv_sec = tsec;
@@ -407,14 +406,14 @@ void makeackstruct(char* a, ack* ackreturn){
   (*ackreturn).seqNum = atoi(a);
 }
 
-void makeackfromframe(ack* ackreturn,frame* f){
+void FrameToAck(ack* ackreturn,frame* f){
 
   (*ackreturn).seqNum = (*f).seqNum;
 
 }
 
 
-void makedatapacket(char* creturn, frame f){
+void MakePacket(char* creturn, frame f){
   
 
   char sNum[4];
@@ -443,15 +442,12 @@ void makedatapacket(char* creturn, frame f){
 
 }
 
-void makedatastruct(char* c, frame* sreturn){
-
-  //frame* sreturn = calloc(600,1);
+void MakeFrame(char* c, frame* frame) {
   char* p;
   char sNum[INTSIZE];
   char finish[INTSIZE];
   char dSize[INTSIZE];
   char ack[INTSIZE];
-  //char fname[100];
   char data[512];
   
   p = strtok(c,DELM);
@@ -465,12 +461,115 @@ void makedatastruct(char* c, frame* sreturn){
   p = strtok(NULL,DELM);
   strcpy(data,p);
   
-  (*sreturn).seqNum = atoi(sNum);
-  (*sreturn).lastFrame = atoi(finish);
-  (*sreturn).dataSize = atoi(dSize);
-  (*sreturn).ack = atoi(ack);
-  //strcpy((*sreturn).filename,fname);
-  strcpy((*sreturn).data,data);
-  
-  //return sreturn;
+  (*frame).seqNum = atoi(sNum);
+  (*frame).lastFrame = atoi(finish);
+  (*frame).dataSize = atoi(dSize);
+  (*frame).ack = atoi(ack);
+
+  strcpy((*frame).data,data);
+}
+
+int PlaceFrame(frame f, frame frameArray[], int arraySize, int* LB, int* RB, FILE* fp) {
+	if(((*LB <= f.seqNum && *RB > f.seqNum) && (*LB < *RB)) ||
+	   (((*LB <= f.seqNum && *RB < f.seqNum) || (*RB > f.seqNum && *LB > f.seqNum)) && (*LB > *RB))	)
+	{
+		frameArray[f.seqNum].seqNum = f.seqNum;
+		frameArray[f.seqNum].lastFrame = f.lastFrame; //Last frame flag
+		frameArray[f.seqNum].dataSize = f.dataSize;
+		frameArray[f.seqNum].ack = f.ack;
+
+		strcpy(frameArray[f.seqNum].data, f.data);
+	} else return -1;
+	return ServerMoveForward(frameArray, arraySize, LB, RB, fp);
+}
+
+int ServerMoveForward(frame frameArray[], int arraySize, int* LB, int* RB, FILE* fp) {
+	 int moveCount = 0, i;
+	 int flag;
+	  /* Special case: initialization: */
+	  if(*LB == *RB) {
+
+		  *LB = 0;
+		  *RB = 4;
+		  moveCount = 4;
+		  return moveCount;
+
+	  }
+
+	  /* Normal cases : */
+	  if(*LB < *RB){
+
+	    for(i = *LB; i < *RB && frameArray[i].ack == 0; i++) {
+	      moveCount++;
+	      frameArray[i].ack = 1;
+	      WriteToFile(frameArray[i].data, fp, frameArray[i].dataSize);
+	      bzero(frameArray[i].data, sizeof(frameArray[i].data));
+	      if(frameArray[i].lastFrame == 1) {
+	    	  printf("Received all frames\n");
+	    	  exit(0);
+	      }
+	    }
+
+	  } else if (*LB > *RB) {
+	    flag = 1;
+
+	    for(i = *LB; i < arraySize; i++) {
+	      if(frameArray[i].ack == 0){
+	    	  moveCount++;
+	    	  frameArray[i].ack = 1;
+	    	  WriteToFile(frameArray[i].data, fp, frameArray[i].dataSize);
+	    	  bzero(frameArray[i].data, sizeof(frameArray[i].data));
+	    	  if(frameArray[i].lastFrame == 1) {
+	    		  printf("Received all frames\n");
+	    	  	  exit(0);
+	    	  }
+	      } else {
+	    	  flag = 0;
+	    	  break;
+	      }
+	    }
+	    if (flag == 1){
+	    	for(i = 0; i < *RB && frameArray[i].ack == 0; i++) {
+	    		moveCount++;
+	    		frameArray[i].ack = 1;
+	    		WriteToFile(frameArray[i].data, fp, frameArray[i].dataSize);
+	    		bzero(frameArray[i].data, sizeof(frameArray[i].data));
+	    		if(frameArray[i].lastFrame == 1) {
+	    			printf("Received all frames\n");
+	    			exit(0);
+	    		}
+	    	}
+	    }
+
+	  }
+
+	  /* Set right bound and leftbount according to how far
+	   * everything moved
+	   */
+	  *LB = ( *LB + moveCount ) % arraySize;
+	  *RB = ( *RB + moveCount ) % arraySize;
+	  return moveCount;
+}
+
+void InitFrameArray (frame frameArray[], int arraySize) {
+	int i;
+	for(i = 0; i < arraySize; i++){
+		frameArray[i].ack = 1;
+	}
+}
+
+void WriteToFile(char* data, FILE* fp, int size) {
+	fwrite(data, 1, size, fp);
+	printf("=========================================\n");
+	printf("=========================================\n");
+	printf("Printing to file ========================\n");
+	printf("=========================================\n");
+	printf("=========================================\n");
+	printf("%s", data);
+	printf("\n");
+	printf("=========================================\n");
+	printf("=========================================\n");
+	printf("End of print ============================\n");
+	printf("=========================================\n");
+	printf("=========================================\n");
 }
