@@ -171,7 +171,11 @@ int main(int argc, char *argv[]) {
       bzero(&filebuffer,sizeof(filebuffer));
 
       int timeoutframe = findtimeout(timesArray,SWS);
+
+
+
       if(frameArray[timeoutframe].lastFrame == 1){
+    	  if(frameArray[timeoutframe].ack == 1){return EXIT_SUCCESS;}
     	  if(lastFrameCount == 10){return EXIT_SUCCESS;}
     	  lastFrameCount ++;
       }

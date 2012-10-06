@@ -181,9 +181,35 @@ int MoveForward(int* LB, int* RB, frame frameArray[], int arraySize) {
   return moveCount;
 }
 
-void InitFrames(frame frameArray[], int arraySize) {
+void storeFrame(frame frameBuffer[], frame* f, int LB, int RB, int size){
+	if(LB < RB){
+
+		if((*f).seqNum >= LB && (*f).seqNum < RB){
+			if(frameBuffer[(*f).seqNum].ack != 1){
+				setFrame(&frameBuffer[(*f).seqNum], (*f).seqNum, (*f).lastFrame, (*f).dataSize, 1, (*f).data);
+			}
+		}
+	}
+
+	if(LB > RB){
+		if((*f).seqNum >= LB && (*f).seqNum < size){
+			if(frameBuffer[(*f).seqNum].ack != 1){
+				setFrame(&frameBuffer[(*f).seqNum], (*f).seqNum, (*f).lastFrame, (*f).dataSize, 1, (*f).data);
+			}
+		}
+		if((*f).seqNum >= 0 && (*f).seqNum < RB){
+			if(frameBuffer[(*f).seqNum].ack != 1){
+				setFrame(&frameBuffer[(*f).seqNum], (*f).seqNum, (*f).lastFrame, (*f).dataSize, 1, (*f).data);
+				}
+			}
+
+	}
+}
+
+
+void initFrames(frame frameArray[], int arraySize) {
 	int i;
-	for(i = 0; i < arraySize; i++) frameArray[i].ack = 1;
+	for(i = 0; i < arraySize; i++) frameArray[i].ack = 0;
 }
 
 void setFrame(frame* f, int seqnum, int lframe, int dsize, int ack, char* data){
