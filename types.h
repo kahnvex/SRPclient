@@ -34,6 +34,27 @@ typedef struct{
   int seqNum;
 }ack;
 
+void makedatapacket(char* creturn, frame f);
+void removefromtimearray(int seqNum, timeStruct timearray[], int size);
+int findtimeout(timeStruct timearray[], int size);
+int currentDeadline(timeStruct timearray[], int size);
+int MoveForward(int* LB, int* RB, frame frameArray[], int arraySize);
+void InitFrames(frame frameArray[], int arraySize);
+void setFrame(frame* f, int seqnum, int lframe, int dsize, int ack, char* data);
+int readtoframe(char* c, const FILE** fp);
+int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, const FILE** fp, int* sock,
+					 struct sockaddr * remoteServAddr, timeStruct timesArray[], int timeSize );
+int ballinselect(int sock, fd_set* readFDS, int tsec, int tusec);
+void setAck(ack* a, int seqnum);
+void printFrame(frame f);
+void makeackmsg(char*acknowledge, ack* a);
+void makeackstruct(char* a, ack* ackreturn);
+void makeackstruct(char* a, ack* ackreturn);
+void makeackfromframe(ack* ackreturn,frame* f);
+void makedatapacket(char* creturn, frame f);
+void makedatastruct(char* c, frame* sreturn);
+
+
 void removefromtimearray(int seqNum, timeStruct timearray[], int size){
 	int i;
 	for(i = 0; i < size; i++){
@@ -43,30 +64,48 @@ void removefromtimearray(int seqNum, timeStruct timearray[], int size){
 		}
 
 	}
-	printf("Remove from time array error!\n");
-	exit(1);
 }
 
 int findtimeout(timeStruct timearray[], int size){
-	int i;
-	int smallesttime;
-	int small = 0;
+	int i,j;
+	double smallesttime = -1;
+	int small = -1;
 	struct timeval time;
+	int index;
 
-	smallesttime = timearray[0].time;
 
 	for(i = 0; i < size; i++){
-		if(timearray[i].time < smallesttime && timearray[i].isValid == 1){
+		if(timearray[i].isValid == 1){
 			smallesttime = timearray[i].time;
-			small = i;
+			small = timearray[i].seqNum;
+			index = i;
+			break;
+		}
+	}
+
+	for(j = 0; j < size; j++){
+		if(timearray[j].time < smallesttime && timearray[j].isValid == 1){
+			smallesttime = timearray[j].time;
+			small = timearray[j].seqNum;
+			index = j;
 		}
 
 	}
 
+	if(smallesttime == -1 || small == -1){
+		printf("Find Timeout Error!\n");
+		exit(1);
+	}
+	/*if(timearray[i].isValid == 0){
+		printf("Find Timeout Error!\n");
+		exit(1);
+
+	}*/
+
 	gettimeofday(&time,NULL);
 	double t = time.tv_sec + (time.tv_usec/1000000.0);
 
-	timearray[i].time = t;
+	timearray[index].time = t;
 
 	return small;
 
@@ -93,7 +132,7 @@ int currentDeadline(timeStruct timearray[], int size){
 
 int MoveForward(int* LB, int* RB, frame frameArray[], int arraySize) {
   int moveCount = 0, i;
-  
+  int flag;
   /* Special case: initialization: */
   if(*LB == *RB) {
 
@@ -113,15 +152,22 @@ int MoveForward(int* LB, int* RB, frame frameArray[], int arraySize) {
     }
     
   } else if (*LB > *RB) {
-    
-    for(i = *LB; i < arraySize && frameArray[i].ack == 1; i++) {
-      moveCount++;
-      frameArray[i].ack = 0;
+    flag = 1;
+
+    for(i = *LB; i < arraySize; i++) {
+      if(frameArray[i].ack == 1){
+    	  moveCount++;
+    	  frameArray[i].ack = 0;
+      } else {
+    	  flag = 0;
+    	  break;
+      }
     }
-    
-    for(i = 0; i < *RB && frameArray[i].ack == 1; i++) {
-      moveCount++;
-      frameArray[i].ack = 0;
+    if (flag == 1){
+    	for(i = 0; i < *RB && frameArray[i].ack == 1; i++) {
+    		moveCount++;
+    		frameArray[i].ack = 0;
+    	}
     }
 
   }
@@ -204,7 +250,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
     		if(timesArray[j].isValid == 0){
     			timesArray[j].isValid = 1;
     			timesArray[j].seqNum = i;
-    			timesArray[i].time = t;
+    			timesArray[j].time = t;
     			break;
     		}
     	}
@@ -239,7 +285,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
 			if(timesArray[j].isValid == 0){
 				timesArray[j].isValid = 1;
 				timesArray[j].seqNum = i;
-				timesArray[i].time = t;
+				timesArray[j].time = t;
 				break;
 			}
 		}
@@ -269,7 +315,7 @@ int SendNextFrames( int moveCount, frame frameArray[], int arraySize, int LB, co
 			if(timesArray[j].isValid == 0){
 				timesArray[j].isValid = 1;
 				timesArray[j].seqNum = i;
-				timesArray[i].time = t;
+				timesArray[j].time = t;
 				break;
 			}
 		}

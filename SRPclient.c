@@ -25,7 +25,7 @@
 #define MAXSEQNUM 8
 #define FILESIZE (24*1024)
 #define BUFSIZE 100
-#define DELAY 5
+#define DELAY 1
 //#define DELM "/"
 
 struct sockaddr_in cliAddr, remoteServAddr, recAddr;
@@ -34,27 +34,30 @@ int sock;
 
 int main(int argc, char *argv[]) {
 
-  int lSize, readResult, selret;
+  static int lSize, readResult, selret;
 
   unsigned int recLen;
-  int i = 0;
-  char* p;
-  char filebuffer[FILESIZE];
-  char recvmsg[BUFSIZE];
-  char directemp[BUFSIZE];
-  char filename[BUFSIZE];
-  char msgbuffer[512];
-  struct timeval time;
+  static int i = 0;
+  static char* p;
+  static char filebuffer[FILESIZE];
+  static char recvmsg[BUFSIZE];
+  static char directemp[BUFSIZE];
+  static char filename[BUFSIZE];
+  static char msgbuffer[512];
+  static struct timeval time;
 
-  fd_set readFDS;
-  frame frameArray[MAXSEQNUM];
-  int LB = 0, RB = 0;
-  char ackBuffer[100];
-  ack recvAck;
-  timeStruct timesArray[SWS];
+  static fd_set readFDS;
+  static frame frameArray[MAXSEQNUM];
+  static int LB = 0, RB = 0; // static
+  static char ackBuffer[100];
+  static ack recvAck;
+  static timeStruct timesArray[SWS];
+  int lastSeqNum = -1;
+  double t, timeout;
+  int lastFrameCount = 0;
 
   //check command line args.
-  if(argc<6) {
+  if(argc < 6) {
     printf("usage : %s <server> <error rate> <random seed> <send_file> <send_log> \n", argv[0]);
     exit(1);
   }
@@ -130,10 +133,11 @@ int main(int argc, char *argv[]) {
     }*/
 
 	  gettimeofday(&time,NULL);
-	  int t = (time.tv_sec + (time.tv_usec/1000000.0));
+	  t = (time.tv_sec + (time.tv_usec/1000000.0));
 
-	  int timeout = (currentDeadline(timesArray,SWS) + DELAY) - t;
 
+	  timeout = (currentDeadline(timesArray,SWS) + DELAY) - t;
+	  printf("Timeout: %f\n", timeout);
 	  if(timeout < 0){timeout = 0;}
 
     selret = ballinselect(sock,&readFDS,timeout,0);
@@ -141,19 +145,25 @@ int main(int argc, char *argv[]) {
     
     if ((selret != -1) && (selret != 0)){
       
-      if(recvfrom(sock, &ackBuffer, sizeof (ackBuffer), 0,(struct sockaddr *) &recAddr, &recLen) < 0){
+      if(recvfrom(sock, &ackBuffer, sizeof (ackBuffer), 0,(struct sockaddr *) &recAddr, (socklen_t*) &recLen) < 0){
     	  perror("recvfrom()");
     	  exit(1);
       }
 
-      makeackstruct(ackBuffer, &recvAck);
-      frameArray[recvAck.seqNum].ack = 1;
+      printf("Ack Buffer: %s\n",ackBuffer);
 
-      removefromtimearray(recvAck.seqNum, timesArray,SWS);
-      printf("============================\n");
-      printf("Received Ack!\n");
-      printf("Ack SeqNum: %d\n", recvAck.seqNum);
-      printf("============================\n\n\n");
+      makeackstruct(ackBuffer, &recvAck);
+      if(lastSeqNum != recvAck.seqNum){
+    	  frameArray[recvAck.seqNum].ack = 1;
+    	  lastSeqNum = recvAck.seqNum;
+
+    	  printf("============================\n");
+    	  printf("Received Ack!\n");
+    	  printf("Ack SeqNum: %d\n", recvAck.seqNum);
+    	  printf("============================\n\n\n");
+
+    	  removefromtimearray(recvAck.seqNum, timesArray,SWS);
+      }
 
     }
     else if (selret == 0) {
@@ -161,15 +171,22 @@ int main(int argc, char *argv[]) {
       bzero(&filebuffer,sizeof(filebuffer));
 
       int timeoutframe = findtimeout(timesArray,SWS);
+      if(frameArray[timeoutframe].lastFrame == 1){
+    	  if(lastFrameCount == 10){return EXIT_SUCCESS;}
+    	  lastFrameCount ++;
+      }
+
       makedatapacket(filebuffer,frameArray[timeoutframe]);
 
+      printf("\nSending Timed out Frame: \n\n");
+      printFrame(frameArray[timeoutframe]);
 
       if((sendto_(sock,filebuffer, strlen(filebuffer),0, (struct sockaddr *) &remoteServAddr,
       		sizeof(remoteServAddr)))< 0 ){
             printf("Error Sending\n");
             perror("sendto()");
             exit(1);
-       }
+      }
 
       /*gettimeofday(&time,NULL);
       double t2= time.tv_sec + (time.tv_usec/1000000.0);
