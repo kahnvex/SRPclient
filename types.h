@@ -1,8 +1,10 @@
 /*
  * This library implements interfaces for both a sliding window client and server
  * The interface contains functionality that both programs need to ensure that 
- * all packets are successfully transfered from the Client to the Server. 
+ * all packets are successfully transfered from the Client to the Server.
  * 
+ * This program is implemented ontop of UDP to make packet transfer unreliable.
+ * This programs job is to make the connection reliable.
  */
 
 #include <stdio.h>
