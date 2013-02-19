@@ -1,3 +1,10 @@
+/*
+ * This library implements interfaces for both a sliding window client and server
+ * The interface contains functionality that both programs need to ensure that 
+ * all packets are successfully transfered from the Client to the Server. 
+ * 
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
