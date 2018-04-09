@@ -13,3 +13,9 @@ $ make binary
 ```
 
 You will see several compiler warnings, again, college days.
+
+To use the binary (not recommended) do:
+
+```sh
+./srp_client <server-ip-or-domain> <error-rate> <random-seed> <file-to-send> <send-log>
+```
